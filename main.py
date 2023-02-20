@@ -47,19 +47,23 @@ def imageTracker(gray_image, previous_gray_image):
 def get_speed_from_text(text):
     parsed_text = text.split(" ")
     if len(parsed_text) > 2:
-        found = False
         for i, x in enumerate(parsed_text):
             if x.find('km') != -1 and i > 0:
                 speed = parsed_text[i - 1]
                 speed = "".join([char for char in speed if char.isdigit() or char == "."])
-                found = True
-                break
-        if not found:
+                try:
+                    if float(speed) > 200:
+                        return float(speed) / 10.0
+                    return float(speed)
+                except:
+                    return speed
+        for x in parsed_text[::-1]:
             try:
-                speed = float(speed)
+                return float(x)
             except:
-                return -1
-        return speed
+                pass
+        return -1
+
     else:
         found = False
         for x in parsed_text:
@@ -72,11 +76,25 @@ def get_speed_from_text(text):
 
     return speed
 
+def correct_text(speed, text):
+    if text is None and speed is None:
+        return -1
+    try:
+        float(speed)
+        if float(speed) > 200:
+            return float(speed) / 10.0
+        return float(speed)
+    except:
+        return get_speed_from_text(text)
+
 # path_to_video = r"New folder/Blindspot/Harley_Davidson_Left_Blind_Spot_26.mp4"
-path_to_video = r"D:\Camera Roll\Alerts\Front Alerts"
+path_to_video = r"D:\Camera Roll\Alerts\Front Alert Falses"
 output_filename = 'Speeds.csv'
 if __name__ == "__main__":
-
+    if os.path.exists(output_filename):
+        df = pd.read_csv(output_filename)
+        df["Speed2"] = df.apply(lambda x: correct_text(x["Speed"], x["text"]), axis=1)
+        df.to_csv(output_filename)
     label = []
     data = []
     columns = ["Black Box Filename", "Black Box Frame Number", "Speed", "text"]
@@ -96,30 +114,26 @@ if __name__ == "__main__":
         while video_to_analyse.isOpened():
             ret, frame = video_to_analyse.read()
             text = ""
-            if ret:
-                noiseless = remove_noise(frame)
-                gray = get_grayscale(noiseless)
-                text = pytesseract.image_to_string(thresholding(gray), lang='eng', config='--psm 3')
-                speed = get_speed_from_text(text)
-                if speed == '' or speed == -1:
-                    speed = prevspeed
-                else:
-                    try:
-                        speed = float(speed)
-                        if speed < 500:
-                            prevspeed = speed
-                    except:
-                        speed = prevspeed
-
-                ret, frame = video_to_analyse.read()
-                ret, frame = video_to_analyse.read()
-                ret, frame = video_to_analyse.read()
-
-            else:
-                print(speed)
 
             if not ret:
                 break
+            noiseless = remove_noise(frame)
+            gray = get_grayscale(noiseless)
+            text = pytesseract.image_to_string(thresholding(gray), lang='eng', config='--psm 3')
+            speed = get_speed_from_text(text)
+            if speed == '' or speed == -1:
+                speed = prevspeed
+            else:
+                try:
+                    speed = float(speed)
+                    if speed < 500:
+                        prevspeed = speed
+                except:
+                    speed = prevspeed
+
+            ret, frame = video_to_analyse.read()
+            ret, frame = video_to_analyse.read()
+            ret, frame = video_to_analyse.read()
 
             data.append([Filename, Frame_number, speed, text])
             Frame_number += 1
